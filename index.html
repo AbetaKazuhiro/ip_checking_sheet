@@ -1,9 +1,10 @@
 <!DOCTYPE html>
+
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>監修スケジュール管理ツール (Firebase連携)</title>
-  <style>
+<meta charset="utf-8"/>
+<title>監修スケジュール管理ツール (Firebase連携)</title>
+<style>
     body { font-family: Arial, sans-serif; margin: 20px; }
     .controls { margin: 20px 0; padding: 15px; background: #f5f5f5; border-radius: 5px; }
     .controls h3 { margin-top: 0; }
@@ -223,113 +224,106 @@
   </style>
 </head>
 <body>
-  <h1>監修スケジュール管理ツール (Firebase連携)</h1>
-  
-  <!-- Firebase接続状況 -->
-  <div id="connectionStatus" class="connection-status status-disconnected">
-    <div class="status-indicator indicator-disconnected"></div>
-    <span>Firebase未接続</span>
-  </div>
-
-  <div class="controls">
-    <h3>プロジェクト管理</h3>
-    <div class="btn-group">
-      <input type="text" id="projectName" placeholder="プロジェクト名を入力" style="padding: 8px; margin-right: 10px;">
-      <button class="btn" onclick="createNewProject()">新規プロジェクト作成</button>
-    </div>
-    <div class="btn-group">
-      <select id="projectSelect" style="padding: 8px; margin-right: 10px; width: 200px;">
-        <option value="">プロジェクトを選択</option>
-      </select>
-      <button class="btn btn-secondary" onclick="loadProject()">プロジェクト読み込み</button>
-      <button class="btn btn-danger" onclick="deleteProject()">削除</button>
-    </div>
-    <div style="margin-top: 10px;">
-      <strong>現在のプロジェクト:</strong> <span id="currentProject">なし</span>
-    </div>
-    <div class="user-management">
-      <div>現在のユーザー: <span id="currentUser" class="current-user">未設定</span></div>
-      <div class="online-users">
-        <strong>オンラインユーザー:</strong>
-        <div id="onlineUsersList"></div>
-      </div>
-    </div>
-  </div>
-
-  <div class="controls">
-    <h3>週の管理・表示設定</h3>
-    <div class="btn-group">
-      <button class="btn" onclick="toggleCalendar()">カレンダーから週を選択</button>
-      <div id="calendarContainer" style="display: none; margin-top: 10px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; background: white;">
-        <div style="display: flex; align-items: center; margin-bottom: 10px;">
-          <button class="btn btn-secondary" onclick="previousMonth()" style="margin-right: 10px;">◀</button>
-          <span id="currentMonth" style="font-weight: bold; margin: 0 10px;"></span>
-          <button class="btn btn-secondary" onclick="nextMonth()" style="margin-left: 10px;">▶</button>
-        </div>
-        <table id="calendar" style="width: 100%; border-collapse: collapse;">
-          <thead>
-            <tr>
-              <th style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;">日</th>
-              <th style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;">月</th>
-              <th style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;">火</th>
-              <th style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;">水</th>
-              <th style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;">木</th>
-              <th style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;">金</th>
-              <th style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;">土</th>
-            </tr>
-          </thead>
-          <tbody id="calendarBody">
-          </tbody>
-        </table>
-        <div style="margin-top: 10px; font-size: 12px; color: #666;">
+<h1>監修スケジュール管理ツール (Firebase連携)</h1>
+<!-- Firebase接続状況 -->
+<div class="connection-status status-disconnected" id="connectionStatus">
+<div class="status-indicator indicator-disconnected"></div>
+<span>Firebase未接続</span>
+</div>
+<div class="controls">
+<h3>プロジェクト管理</h3>
+<div class="btn-group">
+<input id="projectName" placeholder="プロジェクト名を入力" style="padding: 8px; margin-right: 10px;" type="text"/>
+<button class="btn" onclick="createNewProject()">新規プロジェクト作成</button>
+</div>
+<div class="btn-group">
+<select id="projectSelect" style="padding: 8px; margin-right: 10px; width: 200px;">
+<option value="">プロジェクトを選択</option>
+</select>
+<button class="btn btn-secondary" onclick="loadProject()">プロジェクト読み込み</button>
+<button class="btn btn-danger" onclick="deleteProject()">削除</button>
+</div>
+<div style="margin-top: 10px;">
+<strong>現在のプロジェクト:</strong> <span id="currentProject">なし</span>
+</div>
+<div class="user-management">
+<div>現在のユーザー: <span class="current-user" id="currentUser">未設定</span></div>
+<div class="online-users">
+<strong>オンラインユーザー:</strong>
+<div id="onlineUsersList"></div>
+</div>
+</div>
+</div>
+<div class="controls">
+<h3>週の管理・表示設定</h3>
+<div class="btn-group">
+<button class="btn" onclick="toggleCalendar()">カレンダーから週を追加</button>
+<div id="calendarContainer" style="display: none; margin-top: 10px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; background: white;">
+<div style="display: flex; align-items: center; margin-bottom: 10px;">
+<button class="btn btn-secondary" onclick="previousMonth()" style="margin-right: 10px;">◀</button>
+<span id="currentMonth" style="font-weight: bold; margin: 0 10px;"></span>
+<button class="btn btn-secondary" onclick="nextMonth()" style="margin-left: 10px;">▶</button>
+</div>
+<table id="calendar" style="width: 100%; border-collapse: collapse;">
+<thead>
+<tr>
+<th style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;">日</th>
+<th style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;">月</th>
+<th style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;">火</th>
+<th style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;">水</th>
+<th style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;">木</th>
+<th style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;">金</th>
+<th style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;">土</th>
+</tr>
+</thead>
+<tbody id="calendarBody">
+</tbody>
+</table>
+<div style="margin-top: 10px; font-size: 12px; color: #666;">
           ※ 日付をクリックしてその週として追加してください
         </div>
-      </div>
-    </div>
-    <div class="btn-group">
-      <select id="hiddenWeekSelect" class="week-select">
-        <option value="">非表示の週を選択</option>
-      </select>
-      <button class="btn btn-secondary" onclick="showHiddenWeek()">選択した週を表示</button>
-      <button class="btn btn-secondary" onclick="showAllWeeks()">全ての週を表示</button>
-    </div>
-  </div>
-
-  <div class="controls">
-    <h3>カテゴリの管理</h3>
-    <div class="btn-group">
-      <button class="btn" onclick="addCategory()">カテゴリを追加</button>
-    </div>
-  </div>
-
-  <div class="controls">
-    <h3>表の表示設定</h3>
-    <div class="zoom-controls">
-      <label for="zoomSlider">表示倍率:</label>
-      <input type="range" id="zoomSlider" class="zoom-slider" min="50" max="200" value="100" oninput="updateZoom(this.value)">
-      <span id="zoomDisplay" class="zoom-display">100%</span>
-      <button class="btn btn-secondary" onclick="resetZoom()">リセット</button>
-    </div>
-    <div style="font-size: 12px; color: #666;">
-      ※ 列の境界をドラッグして幅を調整できます<br>
+</div>
+</div>
+<div class="btn-group">
+<select class="week-select" id="hiddenWeekSelect">
+<option value="">非表示の週を選択</option>
+</select>
+<button class="btn btn-secondary" onclick="showHiddenWeek()">選択した週を表示</button>
+<button class="btn btn-secondary" onclick="showAllWeeks()">全ての週を表示</button>
+<button class="btn btn-danger" onclick="deleteSelectedWeek()">週を削除</button></div>
+</div>
+<div class="controls">
+<h3>カテゴリの管理</h3>
+<div class="btn-group">
+<button class="btn" onclick="addCategory()">カテゴリを追加</button>
+</div>
+</div>
+<div class="controls">
+<h3>表の表示設定</h3>
+<div class="zoom-controls">
+<label for="zoomSlider">表示倍率:</label>
+<input class="zoom-slider" id="zoomSlider" max="200" min="50" oninput="updateZoom(this.value)" type="range" value="100"/>
+<span class="zoom-display" id="zoomDisplay">100%</span>
+<button class="btn btn-secondary" onclick="resetZoom()">リセット</button>
+</div>
+<div style="font-size: 12px; color: #666;">
+      ※ 列の境界をドラッグして幅を調整できます<br/>
       ※ データはFirebaseに自動保存されます
     </div>
-  </div>
-
-  <div class="table-container" id="tableContainer">
-    <table id="mainTable">
-      <thead>
-        <tr id="headerRow">
-          <th class="category-column">カテゴリ</th>
-        </tr>
-      </thead>
-      <tbody id="tableBody">
-      </tbody>
-    </table>
-  </div>
-
-  <!-- Firebase SDK - 複数のCDNソースを試行 -->
-  <script>
+</div>
+<div class="table-container" id="tableContainer">
+<table id="mainTable">
+<thead>
+<tr id="headerRow">
+<th class="category-column">カテゴリ</th>
+</tr>
+</thead>
+<tbody id="tableBody">
+</tbody>
+</table>
+</div>
+<!-- Firebase SDK - 複数のCDNソースを試行 -->
+<script>
     // Firebase SDKの動的読み込み
     function loadFirebaseSDK() {
       const cdnUrls = [
@@ -415,7 +409,6 @@
     // ページ読み込み後にFirebase SDKを読み込み
     document.addEventListener('DOMContentLoaded', loadFirebaseSDK);
   </script>
-
 <script>
 // グローバル変数
 let weeks = ["7/1"];
@@ -2388,6 +2381,7 @@ function restoreData(data) {
   saveLocalSettings();
   
   console.log('データを復元しました');
+  fixExistingImageAreas(); // 画像クリックイベントを復元
 }
 
 // テーブルをクリア
@@ -2529,6 +2523,84 @@ window.addEventListener('beforeunload', () => {
     clearInterval(presenceUpdateInterval);
   }
 });
+
+
+function deleteWeek(week) {
+  if (!confirm(`週「${week}」を削除しますか？`)) return;
+  weeks = weeks.filter(w => w !== week);
+  hiddenWeeks.delete(week);
+
+  const header = document.querySelector(`th[data-week='${week}']`);
+  if (header) header.remove();
+
+  const cells = document.querySelectorAll(`td[data-week='${week}']`);
+  cells.forEach(cell => cell.remove());
+
+  updateHiddenWeekSelect();
+  calculateTableWidth();
+  syncDataToFirebase();
+}
+
+function deleteSelectedWeek() {
+  const select = document.getElementById('hiddenWeekSelect');
+  const week = select.value;
+  if (!week) {
+    alert('削除する週を選択してください');
+    return;
+  }
+  deleteWeek(week);
+}
 </script>
-</body>
+<script>
+document.addEventListener('paste', function (e) {
+  const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+  for (const item of items) {
+    if (item.type.indexOf('image') !== -1) {
+      const blob = item.getAsFile();
+      const reader = new FileReader();
+      reader.onload = function (event) {
+        const focusedArea = document.querySelector('.img-area:hover');
+        if (!focusedArea) return;
+
+        focusedArea.innerHTML = '';
+        const img = document.createElement('img');
+        img.src = event.target.result;
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.style.objectFit = 'cover';
+        img.style.borderRadius = '2px';
+        focusedArea.appendChild(img);
+
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.style.display = 'none';
+        focusedArea.appendChild(input);
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'img-delete';
+        deleteBtn.innerHTML = '×';
+        deleteBtn.style.display = 'block';
+        focusedArea.appendChild(deleteBtn);
+
+        focusedArea.classList.add('has-image');
+
+        deleteBtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          if (confirm('画像を削除しますか？')) {
+            focusedArea.innerHTML = '<span style="font-size:12px;color:#888;">📷 画像をクリック</span>';
+            focusedArea.classList.remove('has-image');
+          }
+        });
+
+        if (typeof syncDataToFirebase === 'function' && isConnected && firestore) {
+          setTimeout(syncDataToFirebase, 1000);
+        }
+      };
+      reader.readAsDataURL(blob);
+      break;
+    }
+  }
+});
+</script></body>
 </html>
