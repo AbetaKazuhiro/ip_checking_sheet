@@ -1,0 +1,2534 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>監修スケジュール管理ツール (Firebase連携)</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .controls { margin: 20px 0; padding: 15px; background: #f5f5f5; border-radius: 5px; }
+    .controls h3 { margin-top: 0; }
+    .btn-group { margin: 10px 0; }
+    .btn { padding: 8px 15px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+    .btn:hover { background: #0056b3; }
+    .btn-secondary { background: #6c757d; }
+    .btn-secondary:hover { background: #545b62; }
+    .btn-success { background: #28a745; }
+    .btn-success:hover { background: #218838; }
+    .btn-danger { background: #dc3545; }
+    .btn-danger:hover { background: #c82333; }
+    
+    /* Firebase接続状況 */
+    .connection-status { 
+      padding: 10px; margin: 10px 0; border-radius: 5px; 
+      display: flex; align-items: center; gap: 10px;
+    }
+    .status-connected { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .status-disconnected { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .status-indicator { width: 12px; height: 12px; border-radius: 50%; }
+    .indicator-connected { background: #28a745; }
+    .indicator-disconnected { background: #dc3545; }
+    
+    /* ユーザー管理 */
+    .user-management { margin: 10px 0; }
+    .current-user { font-weight: bold; color: #007bff; }
+    .online-users { margin-top: 10px; }
+    .user-badge { 
+      display: inline-block; padding: 2px 8px; margin: 2px; 
+      background: #e9ecef; border-radius: 12px; font-size: 12px; 
+    }
+    .user-badge.current { background: #007bff; color: white; }
+    
+    /* リアルタイム編集インジケーター */
+    .editing-indicator {
+      position: absolute; top: -5px; right: -5px; 
+      background: #ffc107; color: #212529; padding: 2px 6px; 
+      border-radius: 10px; font-size: 10px; z-index: 10;
+    }
+    
+    /* 表のズーム機能 */
+    .zoom-controls { margin: 10px 0; display: flex; align-items: center; gap: 10px; }
+    .zoom-slider { width: 200px; }
+    .zoom-display { font-weight: bold; min-width: 50px; }
+    
+    /* 表のコンテナ - 横スクロール対応 */
+    .table-container { 
+      overflow: auto; 
+      border: 1px solid #ddd; 
+      max-height: 80vh;
+      position: relative;
+    }
+    
+    /* 表の基本スタイル */
+    table { 
+      border-collapse: collapse; 
+      table-layout: fixed;
+      transform-origin: top left;
+    }
+    
+    /* セルの基本スタイル */
+    th, td { 
+      border: 1px solid #ddd; 
+      padding: 10px; 
+      text-align: center; 
+      vertical-align: top; 
+      position: relative;
+      overflow: hidden;
+    }
+    
+    /* カテゴリ列の固定幅 */
+    .category-column { 
+      width: 200px; 
+      min-width: 200px; 
+      max-width: 200px; 
+    }
+    
+    /* 週列の初期幅 */
+    .week-column { 
+      width: 180px; 
+      min-width: 120px; 
+      max-width: 300px; 
+    }
+    
+    /* リサイズハンドル */
+    .resize-handle {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 5px;
+      height: 100%;
+      background: transparent;
+      cursor: col-resize;
+      z-index: 10;
+    }
+    
+    .resize-handle:hover {
+      background: #007bff;
+      opacity: 0.3;
+    }
+    
+    /* リサイズ中のスタイル */
+    .resizing {
+      user-select: none;
+    }
+    
+    .resize-line {
+      position: absolute;
+      top: 0;
+      width: 2px;
+      height: 100%;
+      background: #007bff;
+      z-index: 1000;
+      pointer-events: none;
+    }
+    
+    th { background: #f8f9fa; font-weight: bold; }
+    .week-header { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+    .toggle-btn { background: #28a745; color: white; border: none; border-radius: 3px; 
+                  padding: 2px 6px; font-size: 10px; cursor: pointer; }
+    .toggle-btn.hidden { background: #6c757d; }
+    .week-column-hidden { display: none !important; }
+    
+    .category-cell { background: #e9ecef; font-weight: bold; }
+    input, select { width: 90%; margin: 2px 0; padding: 4px; box-sizing: border-box; }
+    
+    /* 編集中のハイライト */
+    .being-edited { box-shadow: 0 0 5px #ffc107; }
+    
+    .img-area {
+      width: 80px; height: 60px; border: 2px dashed #007bff; margin: 5px auto;
+      display: flex; align-items: center; justify-content: center; cursor: pointer;
+      position: relative; background: #f8f9ff; border-radius: 4px;
+      transition: all 0.3s ease;
+      user-select: none;
+    }
+    .img-area:hover { 
+      border-color: #0056b3; 
+      background: #e6f3ff;
+      transform: scale(1.02);
+    }
+    .img-area:active {
+      transform: scale(0.98);
+    }
+    .img-area img { 
+      width: 100%; height: 100%; object-fit: cover; 
+      border-radius: 2px;
+    }
+    .img-area input[type=file] { 
+      display: none; 
+    }
+    .img-delete { 
+      position: absolute; top: -8px; right: -8px; background: #dc3545; color: white; 
+      border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; 
+      cursor: pointer; display: none; z-index: 10;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .img-delete:hover {
+      background: #c82333;
+      transform: scale(1.1);
+    }
+    .img-area.has-image .img-delete { 
+      display: block; 
+    }
+    .img-area.has-image {
+      border: 2px solid #28a745;
+      background: #f8fff8;
+    }
+    .img-area.has-image:hover {
+      border-color: #20c997;
+    }
+    
+    .calendar-day {
+      padding: 8px;
+      border: 1px solid #ddd;
+      text-align: center;
+      cursor: pointer;
+      position: relative;
+    }
+    .calendar-day:hover {
+      background: #e9ecef;
+    }
+    .calendar-day.other-month {
+      color: #ccc;
+      background: #f8f9fa;
+    }
+    .calendar-day.week-start {
+      background: #d4edda;
+      border-color: #28a745;
+    }
+    .calendar-day.week-start:hover {
+      background: #c3e6cb;
+    }
+    .week-select { width: 150px; margin-right: 10px; }
+    
+    .delete-category-btn { 
+      background: #dc3545; color: white; border: none; border-radius: 3px; 
+      padding: 2px 6px; font-size: 10px; cursor: pointer; margin-left: 5px; 
+    }
+
+    /* Firebase設定モーダル */
+    .modal {
+      display: none; position: fixed; z-index: 1000; left: 0; top: 0;
+      width: 100%; height: 100%; background-color: rgba(0,0,0,0.4);
+    }
+    .modal-content {
+      background-color: #fefefe; margin: 15% auto; padding: 20px;
+      border: 1px solid #888; width: 500px; border-radius: 5px;
+    }
+    .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+    .close:hover { color: black; }
+    .form-group { margin: 15px 0; }
+    .form-group label { display: block; margin-bottom: 5px; font-weight: bold; }
+    .form-group input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 3px; }
+    .form-group textarea { width: 100%; height: 100px; padding: 8px; border: 1px solid #ddd; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <h1>監修スケジュール管理ツール (Firebase連携)</h1>
+  
+  <!-- Firebase接続状況 -->
+  <div id="connectionStatus" class="connection-status status-disconnected">
+    <div class="status-indicator indicator-disconnected"></div>
+    <span>Firebase未接続</span>
+  </div>
+
+  <div class="controls">
+    <h3>プロジェクト管理</h3>
+    <div class="btn-group">
+      <input type="text" id="projectName" placeholder="プロジェクト名を入力" style="padding: 8px; margin-right: 10px;">
+      <button class="btn" onclick="createNewProject()">新規プロジェクト作成</button>
+    </div>
+    <div class="btn-group">
+      <select id="projectSelect" style="padding: 8px; margin-right: 10px; width: 200px;">
+        <option value="">プロジェクトを選択</option>
+      </select>
+      <button class="btn btn-secondary" onclick="loadProject()">プロジェクト読み込み</button>
+      <button class="btn btn-danger" onclick="deleteProject()">削除</button>
+    </div>
+    <div style="margin-top: 10px;">
+      <strong>現在のプロジェクト:</strong> <span id="currentProject">なし</span>
+    </div>
+    <div class="user-management">
+      <div>現在のユーザー: <span id="currentUser" class="current-user">未設定</span></div>
+      <div class="online-users">
+        <strong>オンラインユーザー:</strong>
+        <div id="onlineUsersList"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <h3>週の管理・表示設定</h3>
+    <div class="btn-group">
+      <button class="btn" onclick="toggleCalendar()">カレンダーから週を選択</button>
+      <div id="calendarContainer" style="display: none; margin-top: 10px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; background: white;">
+        <div style="display: flex; align-items: center; margin-bottom: 10px;">
+          <button class="btn btn-secondary" onclick="previousMonth()" style="margin-right: 10px;">◀</button>
+          <span id="currentMonth" style="font-weight: bold; margin: 0 10px;"></span>
+          <button class="btn btn-secondary" onclick="nextMonth()" style="margin-left: 10px;">▶</button>
+        </div>
+        <table id="calendar" style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr>
+              <th style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;">日</th>
+              <th style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;">月</th>
+              <th style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;">火</th>
+              <th style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;">水</th>
+              <th style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;">木</th>
+              <th style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;">金</th>
+              <th style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;">土</th>
+            </tr>
+          </thead>
+          <tbody id="calendarBody">
+          </tbody>
+        </table>
+        <div style="margin-top: 10px; font-size: 12px; color: #666;">
+          ※ 日付をクリックしてその週として追加してください
+        </div>
+      </div>
+    </div>
+    <div class="btn-group">
+      <select id="hiddenWeekSelect" class="week-select">
+        <option value="">非表示の週を選択</option>
+      </select>
+      <button class="btn btn-secondary" onclick="showHiddenWeek()">選択した週を表示</button>
+      <button class="btn btn-secondary" onclick="showAllWeeks()">全ての週を表示</button>
+    </div>
+  </div>
+
+  <div class="controls">
+    <h3>カテゴリの管理</h3>
+    <div class="btn-group">
+      <button class="btn" onclick="addCategory()">カテゴリを追加</button>
+    </div>
+  </div>
+
+  <div class="controls">
+    <h3>表の表示設定</h3>
+    <div class="zoom-controls">
+      <label for="zoomSlider">表示倍率:</label>
+      <input type="range" id="zoomSlider" class="zoom-slider" min="50" max="200" value="100" oninput="updateZoom(this.value)">
+      <span id="zoomDisplay" class="zoom-display">100%</span>
+      <button class="btn btn-secondary" onclick="resetZoom()">リセット</button>
+    </div>
+    <div style="font-size: 12px; color: #666;">
+      ※ 列の境界をドラッグして幅を調整できます<br>
+      ※ データはFirebaseに自動保存されます
+    </div>
+  </div>
+
+  <div class="table-container" id="tableContainer">
+    <table id="mainTable">
+      <thead>
+        <tr id="headerRow">
+          <th class="category-column">カテゴリ</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Firebase SDK - 複数のCDNソースを試行 -->
+  <script>
+    // Firebase SDKの動的読み込み
+    function loadFirebaseSDK() {
+      const cdnUrls = [
+        'https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-app-compat.min.js',
+        'https://unpkg.com/firebase@9.23.0/compat/firebase-app.js'
+      ];
+      
+      let currentIndex = 0;
+      
+      function tryLoadFirebase() {
+        if (currentIndex >= cdnUrls.length) {
+          console.error('全てのFirebase CDNの読み込みに失敗しました');
+          document.getElementById('connectBtn').textContent = 'Firebase読み込み失敗';
+          return;
+        }
+        
+        const script = document.createElement('script');
+        script.src = cdnUrls[currentIndex];
+        script.onload = function() {
+          console.log('Firebase App読み込み成功:', cdnUrls[currentIndex]);
+          // Firestoreも読み込み
+          loadFirestore();
+        };
+        script.onerror = function() {
+          console.log('Firebase読み込み失敗:', cdnUrls[currentIndex]);
+          currentIndex++;
+          tryLoadFirebase();
+        };
+        document.head.appendChild(script);
+      }
+      
+      function loadFirestore() {
+        const firestoreUrls = [
+          'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js',
+          'https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-firestore-compat.min.js',
+          'https://unpkg.com/firebase@9.23.0/compat/firebase-firestore.js'
+        ];
+        
+        let firestoreIndex = 0;
+        
+        function tryLoadFirestore() {
+          if (firestoreIndex >= firestoreUrls.length) {
+            console.error('Firestore読み込み失敗');
+            return;
+          }
+          
+          const script = document.createElement('script');
+          script.src = firestoreUrls[firestoreIndex];
+          script.onload = function() {
+            console.log('Firestore読み込み成功:', firestoreUrls[firestoreIndex]);
+            console.log('Firebase available:', typeof firebase !== 'undefined');
+            
+            // 接続ボタンを有効化
+            const connectBtn = document.getElementById('connectBtn');
+            if (connectBtn) {
+              connectBtn.disabled = false;
+              connectBtn.textContent = '接続';
+            }
+            
+            // 自動接続を試行
+            const defaultUser = 'ユーザー' + Math.floor(Math.random() * 1000);
+            localStorage.setItem('userName', defaultUser);
+            
+            setTimeout(() => {
+              connectToFirebase();
+            }, 1000);
+          };
+          script.onerror = function() {
+            console.log('Firestore読み込み失敗:', firestoreUrls[firestoreIndex]);
+            firestoreIndex++;
+            tryLoadFirestore();
+          };
+          document.head.appendChild(script);
+        }
+        
+        tryLoadFirestore();
+      }
+      
+      tryLoadFirebase();
+    }
+    
+    // ページ読み込み後にFirebase SDKを読み込み
+    document.addEventListener('DOMContentLoaded', loadFirebaseSDK);
+  </script>
+
+<script>
+// グローバル変数
+let weeks = ["7/1"];
+let categories = ["Web広告バナー", "広告テキスト", "デザイン"];
+let hiddenWeeks = new Set();
+let currentCalendarDate = new Date();
+let currentZoom = 100;
+
+// Firebase関連変数
+let firebaseApp = null;
+let firestore = null;
+let currentUser = null;
+let currentProjectId = null;
+let isConnected = false;
+let onlineUsers = {};
+let editingTimeouts = {};
+let presenceUpdateInterval = null;
+
+// リサイズ関連の変数
+let isResizing = false;
+let resizingColumn = null;
+let startX = 0;
+let startWidth = 0;
+let resizeLine = null;
+
+// 初期化
+function init() {
+  console.log('アプリケーション初期化開始');
+  
+  // ローカル設定を読み込み
+  loadLocalSettings();
+  
+  const headerRow = document.getElementById('headerRow');
+  weeks.forEach(week => {
+    const th = document.createElement('th');
+    th.dataset.week = week;
+    th.className = 'week-column';
+    
+    th.innerHTML = `
+      <div class="week-header">
+        <span>${week}</span>
+        <button class="toggle-btn" onclick="toggleWeekVisibility('${week}')">非表示</button>
+      </div>
+      <div class="resize-handle"></div>
+    `;
+    
+    headerRow.appendChild(th);
+  });
+  
+  // カテゴリ列にもリサイズハンドルを追加
+  const categoryHeader = headerRow.querySelector('.category-column');
+  const resizeHandle = document.createElement('div');
+  resizeHandle.className = 'resize-handle';
+  categoryHeader.appendChild(resizeHandle);
+  
+  categories.forEach(cat => addCategory(cat));
+  updateHiddenWeekSelect();
+  initializeResizing();
+  calculateTableWidth();
+  
+  // 🔧 初期化後に既存の画像エリアを修復
+  setTimeout(fixExistingImageAreas, 100);
+  
+  console.log('アプリケーション初期化完了');
+  
+  // Firebase状況をチェック
+  setTimeout(() => {
+    console.log('Firebase SDK確認:', typeof firebase !== 'undefined');
+    if (typeof firebase !== 'undefined') {
+      console.log('Firebase利用可能');
+      const connectBtn = document.getElementById('connectBtn');
+      if (connectBtn) {
+        connectBtn.disabled = false;
+        connectBtn.textContent = '接続';
+      }
+    } else {
+      console.log('Firebase読み込み中...');
+    }
+  }, 2000);
+}
+
+function testFileDialog() {
+  debugLog('📁 === ファイルダイアログテスト開始 ===');
+  
+  // 環境情報をチェック
+  debugLog('ブラウザ情報: ' + navigator.userAgent.substring(0, 50) + '...');
+  debugLog('プロトコル: ' + window.location.protocol);
+  debugLog('ホスト: ' + window.location.host);
+  debugLog('iframe内か: ' + (window.self !== window.top));
+  
+  // シンプルなinput要素を作成してテスト
+  const testInput = document.createElement('input');
+  testInput.type = 'file';
+  testInput.accept = 'image/*';
+  testInput.style.position = 'fixed';
+  testInput.style.top = '-1000px';
+  document.body.appendChild(testInput);
+  
+  testInput.onchange = function() {
+    debugLog('🎉 ファイルダイアログテスト成功！');
+    debugLog('選択されたファイル: ' + (testInput.files.length ? testInput.files[0].name : 'なし'));
+    document.body.removeChild(testInput);
+  };
+  
+  debugLog('テスト用input要素を作成しました');
+  
+  try {
+    debugLog('input.click() 実行...');
+    testInput.click();
+    debugLog('input.click() 完了 - ダイアログが開けばテスト成功');
+    
+    // 5秒後にクリーンアップ
+    setTimeout(() => {
+      if (document.body.contains(testInput)) {
+        debugLog('テスト用input要素をクリーンアップ');
+        document.body.removeChild(testInput);
+      }
+    }, 5000);
+    
+  } catch (error) {
+    debugLog('❌ input.click() エラー: ' + error.message);
+    document.body.removeChild(testInput);
+  }
+  
+  // 画像エリアの詳細診断も実行
+  setTimeout(() => {
+    debugLog('\n--- 画像エリア詳細診断 ---');
+    const imageAreas = document.querySelectorAll('.img-area');
+    debugLog('画像エリア数: ' + imageAreas.length);
+    
+    imageAreas.forEach((area, index) => {
+      debugLog(`画像エリア ${index + 1}:`);
+      debugLog('  onclick設定: ' + (area.onclick ? 'あり' : 'なし'));
+      debugLog('  要素の表示: ' + window.getComputedStyle(area).display);
+      debugLog('  要素の位置: ' + area.getBoundingClientRect().top + 'px');
+      
+      // 強制的に新しいイベントを設定
+      const input = area.querySelector('input[type="file"]');
+      if (input) {
+        debugLog('  input要素発見 - 強制イベント設定');
+        area.onclick = function(e) {
+          debugLog('🖱️ 強制設定イベント: 画像エリア ' + (index + 1) + ' クリック');
+          e.preventDefault();
+          e.stopPropagation();
+          input.click();
+        };
+      }
+    });
+  }, 1000);
+}
+
+// 既存の画像エリアを修復（初期化時用）
+function fixExistingImageAreas() {
+  console.log('🔧 既存画像エリアの修復開始');
+  
+  const imageAreas = document.querySelectorAll('.img-area');
+  console.log('発見された画像エリア数:', imageAreas.length);
+  
+  imageAreas.forEach((area, index) => {
+    console.log(`修復中: 画像エリア ${index + 1}`);
+    
+    const input = area.querySelector('input[type="file"]');
+    const deleteBtn = area.querySelector('.img-delete');
+    
+    if (!input || !deleteBtn) {
+      console.log(`画像エリア ${index + 1}: 必要な要素が不足 - スキップ`);
+      return;
+    }
+    
+    // 既存のイベントをクリア
+    area.onclick = null;
+    input.onchange = null;
+    deleteBtn.onclick = null;
+    
+    // 新しいイベントを設定（createImageAreaと同じロジック）
+    area.addEventListener('click', function(e) {
+      if (e.target !== deleteBtn) {
+        console.log('既存画像エリアクリック - ファイル選択開始');
+        input.click();
+      }
+    });
+    
+    input.addEventListener('change', function() {
+      console.log('既存画像エリア - ファイル選択イベント発生');
+      if (input.files && input.files[0]) {
+        const file = input.files[0];
+        console.log('選択されたファイル:', file.name);
+        
+        if (!file.type.startsWith('image/')) {
+          alert('画像ファイルを選択してください');
+          return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+          alert('5MB以下の画像を選択してください');
+          return;
+        }
+        
+        const reader = new FileReader();
+        reader.onload = function(event) {
+          console.log('既存画像エリア - 画像読み込み完了');
+          area.innerHTML = '';
+          const img = document.createElement('img');
+          img.src = event.target.result;
+          img.style.width = '100%';
+          img.style.height = '100%';
+          img.style.objectFit = 'cover';
+          img.style.borderRadius = '2px';
+          area.appendChild(img);
+          area.appendChild(input);
+          area.appendChild(deleteBtn);
+          deleteBtn.style.display = 'block';
+          area.classList.add('has-image');
+          
+          // Firebase同期
+          if (isConnected && firestore) {
+            setTimeout(syncDataToFirebase, 1000);
+          }
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+    
+    deleteBtn.addEventListener('click', function(e) {
+      console.log('既存画像エリア - 削除ボタンクリック');
+      e.stopPropagation();
+      if (confirm('画像を削除しますか？')) {
+        area.innerHTML = '<span style="font-size:12px;color:#888;">📷 画像をクリック</span>';
+        area.classList.remove('has-image');
+        area.appendChild(input);
+        area.appendChild(deleteBtn);
+        deleteBtn.style.display = 'none';
+        input.value = '';
+        
+        if (isConnected && firestore) {
+          syncDataToFirebase();
+        }
+      }
+    });
+    
+    console.log(`✅ 画像エリア ${index + 1} 修復完了`);
+  });
+  
+  console.log('🎉 既存画像エリア修復完了');
+}
+
+function forceFixImageAreas() {
+  debugLog('⚡ === 強制修復開始 ===');
+  
+  const imageAreas = document.querySelectorAll('.img-area');
+  debugLog('対象画像エリア数: ' + imageAreas.length);
+  
+  imageAreas.forEach((area, index) => {
+    debugLog(`強制修復: 画像エリア ${index + 1}`);
+    
+    // 全てのイベントをクリア
+    area.onclick = null;
+    area.removeAttribute('onclick');
+    
+    // 新しいイベントリスナーをクリア
+    const newArea = area.cloneNode(true);
+    area.parentNode.replaceChild(newArea, area);
+    
+    // input要素を取得
+    const input = newArea.querySelector('input[type="file"]');
+    const deleteBtn = newArea.querySelector('.img-delete');
+    
+    if (!input) {
+      debugLog(`  ❌ input要素が見つからない`);
+      return;
+    }
+    
+    debugLog(`  ✅ 要素を確認`);
+    
+    // 最もシンプルなイベント設定
+    newArea.addEventListener('click', function(e) {
+      debugLog('⚡ 強制修復イベント: クリック検出');
+      debugLog('クリック対象: ' + e.target.tagName);
+      
+      // 削除ボタン以外をクリックした場合
+      if (e.target !== deleteBtn) {
+        debugLog('input.click() 実行');
+        try {
+          input.click();
+          debugLog('✅ input.click() 成功');
+        } catch (error) {
+          debugLog('❌ input.click() エラー: ' + error.message);
+        }
+      }
+    });
+    
+    // ファイル選択イベント
+    input.addEventListener('change', function(e) {
+      debugLog('⚡ ファイル選択検出');
+      
+      if (input.files && input.files[0]) {
+        const file = input.files[0];
+        debugLog('選択ファイル: ' + file.name);
+        
+        if (file.size > 5 * 1024 * 1024) {
+          alert('ファイルサイズが大きすぎます。5MB以下の画像を選択してください。');
+          input.value = '';
+          return;
+        }
+        
+        if (!file.type.startsWith('image/')) {
+          alert('画像ファイルを選択してください。');
+          input.value = '';
+          return;
+        }
+        
+        const reader = new FileReader();
+        reader.onload = function(event) {
+          debugLog('⚡ 画像読み込み完了');
+          
+          // 画像を表示
+          newArea.innerHTML = '';
+          const img = document.createElement('img');
+          img.src = event.target.result;
+          img.style.width = '100%';
+          img.style.height = '100%';
+          img.style.objectFit = 'cover';
+          img.style.borderRadius = '2px';
+          newArea.appendChild(img);
+          
+          // input要素を再追加
+          newArea.appendChild(input);
+          
+          // 削除ボタンを再追加
+          newArea.appendChild(deleteBtn);
+          deleteBtn.style.display = 'block';
+          
+          newArea.classList.add('has-image');
+          
+          debugLog('✅ 画像表示完了');
+          
+          // Firebase同期
+          if (isConnected && firestore) {
+            setTimeout(syncDataToFirebase, 1000);
+          }
+        };
+        
+        reader.readAsDataURL(file);
+      }
+    });
+    
+    // 削除ボタンイベント
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', function(e) {
+        debugLog('⚡ 削除ボタンクリック');
+        e.stopPropagation();
+        
+        if (confirm('画像を削除しますか？')) {
+          newArea.innerHTML = '<span style="font-size:12px;color:#888;">📷 画像をクリック</span>';
+          newArea.classList.remove('has-image');
+          newArea.appendChild(input);
+          newArea.appendChild(deleteBtn);
+          deleteBtn.style.display = 'none';
+          input.value = '';
+          
+          if (isConnected && firestore) {
+            syncDataToFirebase();
+          }
+        }
+      });
+    }
+    
+    debugLog(`  ✅ 画像エリア ${index + 1} 強制修復完了`);
+  });
+  
+  debugLog('⚡ 強制修復完了 - 画像エリアをクリックしてテスト！');
+}
+
+function fixImageAreas() {
+  debugLog('🔧 === 画像機能修復開始 ===');
+  
+  const imageAreas = document.querySelectorAll('.img-area');
+  debugLog('修復対象の画像エリア数: ' + imageAreas.length);
+  
+  let fixedCount = 0;
+  
+  imageAreas.forEach((area, index) => {
+    debugLog(`修復中: 画像エリア ${index + 1}`);
+    
+    const input = area.querySelector('input[type="file"]');
+    const deleteBtn = area.querySelector('.img-delete');
+    const span = area.querySelector('span');
+    
+    if (!input || !deleteBtn) {
+      debugLog(`  ❌ 必要な要素が見つからない (input:${!!input}, deleteBtn:${!!deleteBtn})`);
+      return;
+    }
+    
+    debugLog('  ✅ 必要な要素を確認');
+    
+    // 既存のイベントをクリア
+    area.onclick = null;
+    input.onchange = null;
+    deleteBtn.onclick = null;
+    
+    // 新しいイベントを設定
+    area.onclick = function(e) {
+      debugLog('🖱️ 画像エリアクリック - 修復版');
+      debugLog('クリック対象: ' + e.target.tagName + ' (' + e.target.className + ')');
+      
+      // 削除ボタンをクリックした場合は何もしない
+      if (e.target === deleteBtn) {
+        debugLog('削除ボタンクリック - input.click()しない');
+        return;
+      }
+      
+      e.preventDefault();
+      e.stopPropagation();
+      
+      debugLog('input.click() 実行開始');
+      try {
+        input.click();
+        debugLog('input.click() 成功 - ファイルダイアログが開くはず');
+      } catch (error) {
+        debugLog('input.click() エラー: ' + error.message);
+      }
+    };
+    
+    // ファイル選択イベント
+    input.onchange = function(e) {
+      debugLog('📁 ファイル選択イベント - 修復版');
+      debugLog('選択ファイル数: ' + (input.files ? input.files.length : 0));
+      
+      if (!input.files || !input.files[0]) {
+        debugLog('ファイルが選択されていない');
+        return;
+      }
+      
+      const file = input.files[0];
+      debugLog('選択されたファイル: ' + file.name + ' (' + Math.round(file.size/1024) + 'KB)');
+      
+      // ファイル検証
+      if (file.size > 5 * 1024 * 1024) {
+        debugLog('❌ ファイルサイズエラー');
+        alert('ファイルサイズが大きすぎます。5MB以下の画像を選択してください。');
+        input.value = '';
+        return;
+      }
+      
+      if (!file.type.startsWith('image/')) {
+        debugLog('❌ ファイルタイプエラー');
+        alert('画像ファイルを選択してください。');
+        input.value = '';
+        return;
+      }
+      
+      debugLog('✅ ファイル検証OK - 読み込み開始');
+      
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        debugLog('📷 画像読み込み完了');
+        
+        try {
+          // 既存の内容をクリア
+          area.innerHTML = '';
+          
+          // 画像を作成
+          const img = document.createElement('img');
+          img.src = event.target.result;
+          img.style.width = '100%';
+          img.style.height = '100%';
+          img.style.objectFit = 'cover';
+          img.style.borderRadius = '2px';
+          area.appendChild(img);
+          
+          // input要素を再追加
+          area.appendChild(input);
+          
+          // 削除ボタンを再追加
+          area.appendChild(deleteBtn);
+          deleteBtn.style.display = 'block';
+          
+          // has-imageクラスを追加
+          area.classList.add('has-image');
+          
+          debugLog('✅ 画像表示完了');
+          
+          // Firebase同期（接続時のみ）
+          if (isConnected && firestore) {
+            debugLog('🔄 Firebase同期開始');
+            setTimeout(syncDataToFirebase, 1000);
+          }
+          
+        } catch (error) {
+          debugLog('❌ 画像表示エラー: ' + error.message);
+        }
+      };
+      
+      reader.onerror = function() {
+        debugLog('❌ 画像読み込みエラー');
+        alert('画像の読み込みに失敗しました。');
+        input.value = '';
+      };
+      
+      reader.readAsDataURL(file);
+    };
+    
+    // 削除ボタンイベント
+    deleteBtn.onclick = function(e) {
+      debugLog('🗑️ 削除ボタンクリック');
+      e.preventDefault();
+      e.stopPropagation();
+      
+      if (confirm('画像を削除しますか？')) {
+        debugLog('画像削除実行');
+        
+        // 元の状態に戻す
+        area.innerHTML = '<span style="font-size:12px;color:#888;">📷 画像をクリック</span>';
+        area.classList.remove('has-image');
+        
+        // 要素を再追加
+        input.value = '';
+        area.appendChild(input);
+        area.appendChild(deleteBtn);
+        deleteBtn.style.display = 'none';
+        
+        debugLog('画像削除完了');
+        
+        // Firebase同期
+        if (isConnected && firestore) {
+          syncDataToFirebase();
+        }
+      }
+    };
+    
+    fixedCount++;
+    debugLog(`  ✅ 画像エリア ${index + 1} 修復完了`);
+  });
+  
+  debugLog(`🎉 修復完了: ${fixedCount}個の画像エリアを修復しました`);
+  debugLog('📷 画像エリアをクリックしてテストしてください！');
+}
+
+// ========== デバッグ機能 ==========
+
+function debugLog(message) {
+  console.log(message);
+  const debugOutput = document.getElementById('debugOutput');
+  if (debugOutput) {
+    debugOutput.innerHTML += new Date().toLocaleTimeString() + ': ' + message + '\n';
+    debugOutput.scrollTop = debugOutput.scrollHeight;
+  }
+}
+
+function testImageAreaCreation() {
+  debugLog('=== 画像エリア作成テスト開始 ===');
+  
+  try {
+    const testDiv = createImageArea();
+    debugLog('画像エリア作成成功');
+    debugLog('要素クラス: ' + testDiv.className);
+    debugLog('子要素数: ' + testDiv.children.length);
+    
+    // テスト用の場所に追加
+    const testContainer = document.getElementById('debugOutput');
+    testContainer.appendChild(testDiv);
+    debugLog('テスト画像エリアを追加しました（上記に表示）');
+    
+  } catch (error) {
+    debugLog('画像エリア作成エラー: ' + error.message);
+  }
+}
+
+function testClickEvents() {
+  debugLog('=== クリックイベントテスト開始 ===');
+  
+  const imageAreas = document.querySelectorAll('.img-area');
+  debugLog('画像エリア数: ' + imageAreas.length);
+  
+  imageAreas.forEach((area, index) => {
+    debugLog(`画像エリア ${index + 1}:`);
+    debugLog('  - ID: ' + (area.id || 'なし'));
+    debugLog('  - クラス: ' + area.className);
+    debugLog('  - data-debug: ' + (area.getAttribute('data-debug') || 'なし'));
+    
+    // 既存のイベントを確認
+    debugLog('  - onclick設定済み: ' + (area.onclick ? 'あり' : 'なし'));
+    
+    // 手動でイベントを再設定
+    const input = area.querySelector('input[type="file"]');
+    const deleteBtn = area.querySelector('.img-delete');
+    
+    if (input && deleteBtn) {
+      debugLog('  - input要素: 発見');
+      debugLog('  - deleteBtn: 発見');
+      
+      // 強制的にイベントを再設定
+      area.onclick = function(e) {
+        debugLog('=== 手動設定onclick でクリック検出 ===');
+        debugLog('クリックされた要素: ' + e.target.tagName + '.' + e.target.className);
+        
+        if (e.target === deleteBtn) {
+          debugLog('削除ボタンがクリックされました');
+          return;
+        }
+        
+        e.preventDefault();
+        e.stopPropagation();
+        
+        debugLog('ファイル選択ダイアログを開きます');
+        try {
+          input.click();
+          debugLog('input.click() 実行成功');
+        } catch (error) {
+          debugLog('input.click() エラー: ' + error.message);
+        }
+      };
+      
+      // ファイル選択イベントも再設定
+      input.onchange = function(e) {
+        debugLog('=== ファイル選択イベント（手動設定） ===');
+        debugLog('選択されたファイル数: ' + (input.files ? input.files.length : 0));
+        
+        if (input.files && input.files[0]) {
+          const file = input.files[0];
+          debugLog('ファイル名: ' + file.name);
+          debugLog('ファイルサイズ: ' + file.size);
+          debugLog('ファイルタイプ: ' + file.type);
+          
+          if (file.size > 5 * 1024 * 1024) {
+            alert('ファイルサイズが大きすぎます。5MB以下の画像を選択してください。');
+            input.value = '';
+            return;
+          }
+          
+          if (!file.type.startsWith('image/')) {
+            alert('画像ファイルを選択してください。');
+            input.value = '';
+            return;
+          }
+          
+          const reader = new FileReader();
+          reader.onload = function(event) {
+            debugLog('画像読み込み完了');
+            
+            // 画像を表示
+            area.innerHTML = '';
+            const img = document.createElement('img');
+            img.src = event.target.result;
+            img.style.width = '100%';
+            img.style.height = '100%';
+            img.style.objectFit = 'cover';
+            img.style.borderRadius = '2px';
+            area.appendChild(img);
+            
+            // 要素を再追加
+            area.appendChild(input);
+            area.appendChild(deleteBtn);
+            deleteBtn.style.display = 'block';
+            area.classList.add('has-image');
+            
+            debugLog('画像表示完了');
+          };
+          
+          reader.onerror = function() {
+            debugLog('画像読み込みエラー');
+            alert('画像の読み込みに失敗しました。');
+          };
+          
+          reader.readAsDataURL(file);
+        }
+      };
+      
+      debugLog('  - イベント再設定完了');
+    } else {
+      debugLog('  - input要素またはdeleteBtnが見つからない');
+    }
+  });
+  
+  debugLog('全ての画像エリアのイベントを再設定しました');
+  debugLog('画像エリアをクリックしてテストしてください！');
+}
+
+function inspectImageAreas() {
+  debugLog('=== 画像エリア検査開始 ===');
+  
+  const imageAreas = document.querySelectorAll('.img-area');
+  debugLog('発見された画像エリア数: ' + imageAreas.length);
+  
+  imageAreas.forEach((area, index) => {
+    debugLog(`\n--- 画像エリア ${index + 1} ---`);
+    debugLog('要素タイプ: ' + area.tagName);
+    debugLog('クラス: ' + area.className);
+    debugLog('スタイル表示: ' + window.getComputedStyle(area).display);
+    debugLog('スタイル可視性: ' + window.getComputedStyle(area).visibility);
+    debugLog('位置: x=' + area.offsetLeft + ', y=' + area.offsetTop);
+    debugLog('サイズ: w=' + area.offsetWidth + ', h=' + area.offsetHeight);
+    debugLog('innerHTML: ' + area.innerHTML.substring(0, 100));
+    
+    // 子要素の確認
+    debugLog('子要素数: ' + area.children.length);
+    for (let i = 0; i < area.children.length; i++) {
+      const child = area.children[i];
+      debugLog(`  子要素 ${i + 1}: ${child.tagName}.${child.className}`);
+    }
+    
+    // イベントリスナーの確認（近似）
+    const events = [];
+    if (area.onclick) events.push('onclick');
+    if (area.addEventListener.toString().includes('click')) events.push('addEventListener');
+    debugLog('イベント: ' + (events.length ? events.join(', ') : 'なし'));
+  });
+}
+
+// ========== Firebase関連機能 ==========
+
+function showFirebaseConfig() {
+  document.getElementById('firebaseModal').style.display = 'block';
+  
+  // 保存された設定を読み込み
+  const savedConfig = getStoredFirebaseConfig();
+  const savedUserName = getStoredUserName();
+  
+  if (savedConfig) {
+    document.getElementById('firebaseConfig').value = JSON.stringify(savedConfig, null, 2);
+  }
+  if (savedUserName) {
+    document.getElementById('userName').value = savedUserName;
+  }
+}
+
+function hideFirebaseConfig() {
+  document.getElementById('firebaseModal').style.display = 'none';
+}
+
+function loadSampleConfig() {
+  const sampleConfig = {
+    "apiKey": "AIzaSyCxTWcFJksdtGYKUo3B_tNpXyjJ6bPlcXU",
+    "authDomain": "ipsheet-11633.firebaseapp.com",
+    "projectId": "ipsheet-11633",
+    "storageBucket": "ipsheet-11633.firebasestorage.app",
+    "messagingSenderId": "315180897561",
+    "appId": "1:315180897561:web:339f254e1f227f8b432188",
+    "measurementId": "G-7HXRKLJCNB"
+  };
+  
+  document.getElementById('firebaseConfig').value = JSON.stringify(sampleConfig, null, 2);
+  document.getElementById('userName').value = 'ユーザー';
+}
+
+function saveFirebaseConfig() {
+  const userName = document.getElementById('userName').value.trim();
+  const configText = document.getElementById('firebaseConfig').value.trim();
+  
+  if (!userName) {
+    alert('ユーザー名を入力してください');
+    return;
+  }
+  
+  if (!configText) {
+    alert('Firebase設定を入力してください');
+    return;
+  }
+  
+  try {
+    const config = JSON.parse(configText);
+    
+    // 必要なフィールドをチェック
+    const requiredFields = ['apiKey', 'authDomain', 'projectId'];
+    const missingFields = requiredFields.filter(field => !config[field]);
+    
+    if (missingFields.length > 0) {
+      alert(`以下のフィールドが不足しています: ${missingFields.join(', ')}`);
+      return;
+    }
+    
+    // ローカルストレージに保存
+    localStorage.setItem('firebaseConfig', JSON.stringify(config));
+    localStorage.setItem('userName', userName);
+    
+    // 接続ボタンの状態を更新
+    const connectBtn = document.getElementById('connectBtn');
+    if (typeof firebase !== 'undefined') {
+      connectBtn.disabled = false;
+      connectBtn.textContent = '接続';
+    } else {
+      connectBtn.textContent = 'Firebase読み込み中...';
+    }
+    
+    hideFirebaseConfig();
+    alert('Firebase設定を保存しました。Firebase SDKの読み込み完了後、「接続」ボタンをクリックしてください。');
+    
+  } catch (error) {
+    alert('Firebase設定のJSONが無効です。正しい形式で入力してください。');
+  }
+}
+
+function getStoredFirebaseConfig() {
+  const configStr = localStorage.getItem('firebaseConfig');
+  return configStr ? JSON.parse(configStr) : null;
+}
+
+function getStoredUserName() {
+  return localStorage.getItem('userName');
+}
+
+function updateConnectionStatus(connected) {
+  const statusDiv = document.getElementById('connectionStatus');
+  const indicator = statusDiv.querySelector('.status-indicator');
+  const text = statusDiv.querySelector('span');
+  
+  if (connected) {
+    statusDiv.className = 'connection-status status-connected';
+    indicator.className = 'status-indicator indicator-connected';
+    text.textContent = 'Firebase接続中';
+  } else {
+    statusDiv.className = 'connection-status status-disconnected';
+    indicator.className = 'status-indicator indicator-disconnected';
+    text.textContent = 'Firebase未接続';
+  }
+}
+
+function connectToFirebase() {
+  // Firebase SDKの読み込みチェック
+  if (typeof firebase === 'undefined') {
+    console.error('Firebase SDKが読み込まれていません');
+    return;
+  }
+  
+  // 固定Firebase設定
+  const config = {
+    "apiKey": "AIzaSyCxTWcFJksdtGYKUo3B_tNpXyjJ6bPlcXU",
+    "authDomain": "ipsheet-11633.firebaseapp.com",
+    "projectId": "ipsheet-11633",
+    "storageBucket": "ipsheet-11633.firebasestorage.app",
+    "messagingSenderId": "315180897561",
+    "appId": "1:315180897561:web:339f254e1f227f8b432188",
+    "measurementId": "G-7HXRKLJCNB"
+  };
+  
+  // ユーザー名を取得または生成
+  let userName = getStoredUserName();
+  if (!userName) {
+    userName = 'ユーザー' + Math.floor(Math.random() * 1000);
+    localStorage.setItem('userName', userName);
+  }
+  
+  try {
+    // Firebase初期化
+    if (firebaseApp) {
+      firebaseApp.delete();
+    }
+    
+    firebaseApp = firebase.initializeApp(config);
+    firestore = firebase.firestore();
+    currentUser = userName;
+    isConnected = true;
+    
+    updateConnectionStatus(true);
+    
+    // プロジェクト一覧を読み込み
+    loadProjectList();
+    
+    // UI更新
+    document.getElementById('currentUser').textContent = userName;
+    
+    console.log('Firebase接続成功');
+    
+  } catch (error) {
+    console.error('Firebase接続エラー:', error);
+    updateConnectionStatus(false);
+  }
+}
+
+function disconnectFromFirebase() {
+  if (firebaseApp) {
+    // プレゼンス削除
+    if (currentProjectId && currentUser) {
+      firestore.collection('projects').doc(currentProjectId).collection('users').doc(currentUser).delete();
+    }
+    
+    // プレゼンス更新のインターバルをクリア
+    if (presenceUpdateInterval) {
+      clearInterval(presenceUpdateInterval);
+      presenceUpdateInterval = null;
+    }
+    
+    firebaseApp.delete();
+    firebaseApp = null;
+    firestore = null;
+    currentUser = null;
+    currentProjectId = null;
+    isConnected = false;
+    onlineUsers = {};
+    
+    updateConnectionStatus(false);
+    document.getElementById('connectBtn').disabled = false;
+    document.getElementById('disconnectBtn').disabled = true;
+    document.getElementById('currentUser').textContent = '未設定';
+    document.getElementById('currentProject').textContent = 'なし';
+    document.getElementById('onlineUsersList').innerHTML = '';
+    
+    // プロジェクト選択をクリア
+    document.getElementById('projectSelect').innerHTML = '<option value="">プロジェクトを選択</option>';
+  }
+}
+
+function updateConnectionStatus(connected) {
+  const statusDiv = document.getElementById('connectionStatus');
+  const indicator = statusDiv.querySelector('.status-indicator');
+  const text = statusDiv.querySelector('span');
+  
+  if (connected) {
+    statusDiv.className = 'connection-status status-connected';
+    indicator.className = 'status-indicator indicator-connected';
+    text.textContent = 'Firebase接続中';
+  } else {
+    statusDiv.className = 'connection-status status-disconnected';
+    indicator.className = 'status-indicator indicator-disconnected';
+    text.textContent = 'Firebase未接続';
+  }
+}
+
+function setupUserPresence() {
+  if (!firestore || !currentProjectId || !currentUser) return;
+  
+  const userRef = firestore.collection('projects').doc(currentProjectId).collection('users').doc(currentUser);
+  
+  // ユーザー情報を設定
+  userRef.set({
+    name: currentUser,
+    lastSeen: firebase.firestore.FieldValue.serverTimestamp(),
+    online: true
+  });
+  
+  // 定期的にlastSeenを更新（30秒ごと）
+  presenceUpdateInterval = setInterval(() => {
+    if (firestore && currentProjectId && currentUser) {
+      userRef.update({
+        lastSeen: firebase.firestore.FieldValue.serverTimestamp(),
+        online: true
+      });
+    }
+  }, 30000);
+  
+  // オンラインユーザー一覧を監視
+  firestore.collection('projects').doc(currentProjectId).collection('users')
+    .onSnapshot((snapshot) => {
+      onlineUsers = {};
+      const now = Date.now();
+      
+      snapshot.forEach((doc) => {
+        const userData = doc.data();
+        const lastSeen = userData.lastSeen ? userData.lastSeen.toMillis() : 0;
+        
+        // 5分以内にアクティビティがあればオンラインとみなす
+        if (now - lastSeen < 5 * 60 * 1000) {
+          onlineUsers[doc.id] = userData;
+        }
+      });
+      
+      updateOnlineUsersList();
+    });
+}
+
+function updateOnlineUsersList() {
+  const listDiv = document.getElementById('onlineUsersList');
+  listDiv.innerHTML = '';
+  
+  Object.keys(onlineUsers).forEach(userName => {
+    const badge = document.createElement('span');
+    badge.className = 'user-badge';
+    if (userName === currentUser) {
+      badge.className += ' current';
+    }
+    badge.textContent = userName;
+    listDiv.appendChild(badge);
+  });
+}
+
+// ========== プロジェクト管理 ==========
+
+function createNewProject() {
+  if (!firestore) {
+    alert('Firebaseに接続してください');
+    return;
+  }
+  
+  const projectName = document.getElementById('projectName').value.trim();
+  if (!projectName) {
+    alert('プロジェクト名を入力してください');
+    return;
+  }
+  
+  const projectId = generateProjectId();
+  const projectData = {
+    name: projectName,
+    createdBy: currentUser,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    data: getCurrentData()
+  };
+  
+  firestore.collection('projects').doc(projectId).set(projectData)
+    .then(() => {
+      currentProjectId = projectId;
+      document.getElementById('currentProject').textContent = projectName;
+      document.getElementById('projectName').value = '';
+      loadProjectList();
+      setupUserPresence();
+      setupDataSync();
+      alert(`プロジェクト「${projectName}」を作成しました`);
+    })
+    .catch((error) => {
+      alert('プロジェクト作成に失敗しました: ' + error.message);
+    });
+}
+
+function loadProject() {
+  if (!firestore) {
+    alert('Firebaseに接続してください');
+    return;
+  }
+  
+  const projectId = document.getElementById('projectSelect').value;
+  if (!projectId) {
+    alert('プロジェクトを選択してください');
+    return;
+  }
+  
+  firestore.collection('projects').doc(projectId).get()
+    .then((doc) => {
+      if (doc.exists) {
+        const project = doc.data();
+        currentProjectId = projectId;
+        document.getElementById('currentProject').textContent = project.name;
+        
+        if (project.data) {
+          restoreData(project.data);
+        }
+        
+        setupUserPresence();
+        setupDataSync();
+        alert(`プロジェクト「${project.name}」を読み込みました`);
+      } else {
+        alert('プロジェクトが見つかりません');
+      }
+    })
+    .catch((error) => {
+      alert('プロジェクト読み込みに失敗しました: ' + error.message);
+    });
+}
+
+function deleteProject() {
+  if (!firestore) {
+    alert('Firebaseに接続してください');
+    return;
+  }
+  
+  const projectId = document.getElementById('projectSelect').value;
+  if (!projectId) {
+    alert('削除するプロジェクトを選択してください');
+    return;
+  }
+  
+  if (!confirm('このプロジェクトを削除しますか？この操作は取り消せません。')) {
+    return;
+  }
+  
+  firestore.collection('projects').doc(projectId).delete()
+    .then(() => {
+      if (currentProjectId === projectId) {
+        currentProjectId = null;
+        document.getElementById('currentProject').textContent = 'なし';
+      }
+      loadProjectList();
+      alert('プロジェクトを削除しました');
+    })
+    .catch((error) => {
+      alert('プロジェクト削除に失敗しました: ' + error.message);
+    });
+}
+
+function loadProjectList() {
+  if (!firestore) return;
+  
+  const select = document.getElementById('projectSelect');
+  select.innerHTML = '<option value="">プロジェクトを選択</option>';
+  
+  firestore.collection('projects').get()
+    .then((querySnapshot) => {
+      querySnapshot.forEach((doc) => {
+        const project = doc.data();
+        const option = document.createElement('option');
+        option.value = doc.id;
+        option.textContent = `${project.name} (作成者: ${project.createdBy})`;
+        select.appendChild(option);
+      });
+    })
+    .catch((error) => {
+      console.error('プロジェクト一覧の取得に失敗:', error);
+    });
+}
+
+function generateProjectId() {
+  return 'proj_' + Date.now().toString(36) + Math.random().toString(36).substr(2);
+}
+
+// ========== リアルタイムデータ同期 ==========
+
+function setupDataSync() {
+  if (!firestore || !currentProjectId) return;
+  
+  const projectRef = firestore.collection('projects').doc(currentProjectId);
+  
+  // リアルタイムデータ更新を監視
+  projectRef.onSnapshot((doc) => {
+    if (doc.exists) {
+      const project = doc.data();
+      if (project.data && project.data.lastUpdatedBy !== currentUser) {
+        // 他のユーザーによる更新の場合のみ反映
+        restoreData(project.data);
+      }
+    }
+  });
+  
+  // 編集中状況を監視
+  firestore.collection('projects').doc(currentProjectId).collection('editing')
+    .onSnapshot((snapshot) => {
+      const editingData = {};
+      snapshot.forEach((doc) => {
+        editingData[doc.id] = doc.data();
+      });
+      updateEditingIndicators(editingData);
+    });
+}
+
+function syncDataToFirebase() {
+  if (!firestore || !currentProjectId || !currentUser) {
+    console.log('Firebase同期スキップ - 接続なし');
+    return;
+  }
+  
+  try {
+    const data = getCurrentData();
+    data.lastUpdatedBy = currentUser;
+    data.lastUpdatedAt = firebase.firestore.FieldValue.serverTimestamp();
+    
+    console.log('Firebase同期開始...');
+    firestore.collection('projects').doc(currentProjectId).update({
+      data: data
+    })
+      .then(() => {
+        console.log('Firebase同期成功');
+      })
+      .catch((error) => {
+        console.warn('Firebase同期エラー（オフラインモードで継続）:', error);
+        // エラーが出てもアプリケーションは継続動作
+      });
+      
+  } catch (error) {
+    console.warn('Firebase同期処理エラー:', error);
+  }
+}
+
+function notifyEditing(elementId, isEditing) {
+  if (!firestore || !currentProjectId || !currentUser) return;
+  
+  const editingRef = firestore.collection('projects').doc(currentProjectId).collection('editing').doc(elementId);
+  
+  if (isEditing) {
+    editingRef.set({
+      user: currentUser,
+      timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    
+    // 5秒後に自動削除
+    setTimeout(() => {
+      editingRef.delete();
+    }, 5000);
+  } else {
+    editingRef.delete();
+  }
+}
+
+function updateEditingIndicators(editingData) {
+  // 既存のインジケーターを削除
+  document.querySelectorAll('.editing-indicator').forEach(indicator => {
+    indicator.remove();
+  });
+  
+  // 新しいインジケーターを追加
+  Object.keys(editingData).forEach(elementId => {
+    const editingInfo = editingData[elementId];
+    if (editingInfo.user !== currentUser) {
+      const element = document.getElementById(elementId) || document.querySelector(`[data-element-id="${elementId}"]`);
+      if (element) {
+        const indicator = document.createElement('div');
+        indicator.className = 'editing-indicator';
+        indicator.textContent = `${editingInfo.user}が編集中`;
+        element.style.position = 'relative';
+        element.appendChild(indicator);
+      }
+    }
+  });
+}
+
+// ========== 元の機能を拡張 ==========
+
+// テーブルの幅を計算して設定
+function calculateTableWidth() {
+  const table = document.getElementById('mainTable');
+  const categoryWidth = 200; // カテゴリ列の幅
+  const weekWidth = 180; // 各週列の幅
+  const visibleWeeks = weeks.filter(week => !hiddenWeeks.has(week));
+  const totalWidth = categoryWidth + (weekWidth * visibleWeeks.length);
+  
+  table.style.width = totalWidth + 'px';
+}
+
+// ズーム機能
+function updateZoom(value) {
+  currentZoom = parseInt(value);
+  const table = document.getElementById('mainTable');
+  const zoomDisplay = document.getElementById('zoomDisplay');
+  
+  table.style.transform = `scale(${currentZoom / 100})`;
+  zoomDisplay.textContent = currentZoom + '%';
+  
+  // コンテナの高さを調整
+  const container = document.getElementById('tableContainer');
+  if (currentZoom !== 100) {
+    container.style.height = `${80 * (100 / currentZoom)}vh`;
+  } else {
+    container.style.height = '80vh';
+  }
+}
+
+function resetZoom() {
+  document.getElementById('zoomSlider').value = 100;
+  updateZoom(100);
+}
+
+// リサイズ機能の初期化
+function initializeResizing() {
+  const tableContainer = document.getElementById('tableContainer');
+  
+  // マウスダウンイベント（リサイズ開始）
+  tableContainer.addEventListener('mousedown', function(e) {
+    if (e.target.classList.contains('resize-handle')) {
+      isResizing = true;
+      resizingColumn = e.target.parentElement;
+      startX = e.clientX;
+      startWidth = resizingColumn.offsetWidth;
+      
+      // リサイズライン表示
+      resizeLine = document.createElement('div');
+      resizeLine.className = 'resize-line';
+      resizeLine.style.left = e.clientX + 'px';
+      document.body.appendChild(resizeLine);
+      
+      document.body.classList.add('resizing');
+      e.preventDefault();
+    }
+  });
+  
+  // マウス移動イベント（リサイズ中）
+  document.addEventListener('mousemove', function(e) {
+    if (!isResizing) return;
+    
+    const diff = e.clientX - startX;
+    const newWidth = Math.max(100, startWidth + diff); // 最小幅100px
+    
+    // リサイズライン移動
+    if (resizeLine) {
+      resizeLine.style.left = e.clientX + 'px';
+    }
+    
+    e.preventDefault();
+  });
+  
+  // マウスアップイベント（リサイズ終了）
+  document.addEventListener('mouseup', function(e) {
+    if (!isResizing) return;
+    
+    const diff = e.clientX - startX;
+    const newWidth = Math.max(100, startWidth + diff);
+    
+    // 列幅を実際に変更
+    if (resizingColumn) {
+      resizingColumn.style.width = newWidth + 'px';
+      
+      // 同じ週の全てのセルの幅を変更
+      const weekData = resizingColumn.dataset.week;
+      if (weekData) {
+        const allCells = document.querySelectorAll(`[data-week="${weekData}"]`);
+        allCells.forEach(cell => {
+          cell.style.width = newWidth + 'px';
+        });
+      } else if (resizingColumn.classList.contains('category-column')) {
+        // カテゴリ列の場合
+        const allCategoryCells = document.querySelectorAll('.category-column');
+        allCategoryCells.forEach(cell => {
+          cell.style.width = newWidth + 'px';
+        });
+      }
+    }
+    
+    // リサイズライン削除
+    if (resizeLine) {
+      document.body.removeChild(resizeLine);
+      resizeLine = null;
+    }
+    
+    isResizing = false;
+    resizingColumn = null;
+    document.body.classList.remove('resizing');
+    
+    // テーブル全体の幅を再計算
+    updateTableWidth();
+  });
+}
+
+// テーブル全体の幅を更新
+function updateTableWidth() {
+  const table = document.getElementById('mainTable');
+  const headerRow = document.getElementById('headerRow');
+  const cells = headerRow.querySelectorAll('th');
+  let totalWidth = 0;
+  
+  cells.forEach(cell => {
+    if (!cell.classList.contains('week-column-hidden')) {
+      totalWidth += cell.offsetWidth;
+    }
+  });
+  
+  table.style.width = totalWidth + 'px';
+}
+
+// 画像エリアのイベントを設定するヘルパー関数
+function setupImageAreaEvents(imgArea, input, deleteBtn) {
+  // クリックイベント（削除ボタン以外）
+  imgArea.addEventListener('click', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.target !== deleteBtn) {
+      console.log('画像エリアがクリックされました');
+      input.click();
+    }
+  });
+  
+  // ファイル選択イベント
+  input.addEventListener('change', function(e) {
+    console.log('ファイルが選択されました:', input.files);
+    if (input.files && input.files[0]) {
+      const file = input.files[0];
+      
+      // ファイルサイズチェック（5MB制限）
+      if (file.size > 5 * 1024 * 1024) {
+        alert('ファイルサイズが大きすぎます。5MB以下の画像を選択してください。');
+        input.value = '';
+        return;
+      }
+      
+      // ファイルタイプチェック
+      if (!file.type.startsWith('image/')) {
+        alert('画像ファイルを選択してください。');
+        input.value = '';
+        return;
+      }
+      
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        console.log('画像読み込み完了');
+        // 既存のコンテンツをクリア
+        imgArea.innerHTML = '';
+        
+        // 画像要素を作成
+        const img = document.createElement('img');
+        img.src = event.target.result;
+        img.alt = '画像';
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.style.objectFit = 'cover';
+        imgArea.appendChild(img);
+        
+        // 入力要素を再追加（非表示）
+        imgArea.appendChild(input);
+        
+        // 削除ボタンを再追加
+        imgArea.appendChild(deleteBtn);
+        deleteBtn.style.display = 'block';
+        
+        imgArea.classList.add('has-image');
+        
+        // データ同期
+        setTimeout(syncDataToFirebase, 1000);
+      };
+      
+      reader.onerror = function() {
+        alert('画像の読み込みに失敗しました。');
+        input.value = '';
+      };
+      
+      reader.readAsDataURL(file);
+    }
+  });
+  
+  // 削除ボタンイベント
+  deleteBtn.addEventListener('click', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('画像削除ボタンがクリックされました');
+    
+    if (confirm('画像を削除しますか？')) {
+      // 元の状態に戻す
+      imgArea.innerHTML = '<span style="font-size:12px;color:#888;">画像</span>';
+      imgArea.classList.remove('has-image');
+      
+      // 要素を再追加
+      input.value = ''; // ファイル選択をリセット
+      imgArea.appendChild(input);
+      imgArea.appendChild(deleteBtn);
+      deleteBtn.style.display = 'none';
+      
+      // データ同期
+      syncDataToFirebase();
+    }
+  });
+}
+
+// 画像アップロード領域を作成
+// 画像アップロード領域を作成
+function createImageArea() {
+  const div = document.createElement('div');
+  div.className = 'img-area';
+  div.innerHTML = '<span style="font-size:12px;color:#888;">📷 画像をクリック</span>';
+
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.style.display = 'none';
+
+  const deleteBtn = document.createElement('button');
+  deleteBtn.className = 'img-delete';
+  deleteBtn.innerHTML = '×';
+  deleteBtn.style.display = 'none';
+
+  // クリックでinputを開く（削除ボタン以外）
+  div.addEventListener('click', function(e) {
+    if (e.target !== deleteBtn) {
+      console.log('画像エリアクリック - ファイル選択開始');
+      input.click();
+    }
+  });
+
+  // ファイル選択時
+  input.addEventListener('change', function() {
+    console.log('ファイル選択イベント発生');
+    if (input.files && input.files[0]) {
+      const file = input.files[0];
+      console.log('選択されたファイル:', file.name);
+      
+      if (!file.type.startsWith('image/')) {
+        alert('画像ファイルを選択してください');
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        alert('5MB以下の画像を選択してください');
+        return;
+      }
+      
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        console.log('画像読み込み完了');
+        div.innerHTML = '';
+        const img = document.createElement('img');
+        img.src = event.target.result;
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.style.objectFit = 'cover';
+        img.style.borderRadius = '2px';
+        div.appendChild(img);
+        div.appendChild(input);
+        div.appendChild(deleteBtn);
+        deleteBtn.style.display = 'block';
+        div.classList.add('has-image');
+        
+        // Firebase同期
+        if (isConnected && firestore) {
+          setTimeout(syncDataToFirebase, 1000);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  // 削除ボタン
+  deleteBtn.addEventListener('click', function(e) {
+    console.log('削除ボタンクリック');
+    e.stopPropagation();
+    if (confirm('画像を削除しますか？')) {
+      div.innerHTML = '<span style="font-size:12px;color:#888;">📷 画像をクリック</span>';
+      div.classList.remove('has-image');
+      div.appendChild(input);
+      div.appendChild(deleteBtn);
+      deleteBtn.style.display = 'none';
+      input.value = '';
+      
+      // Firebase同期
+      if (isConnected && firestore) {
+        syncDataToFirebase();
+      }
+    }
+  });
+
+  div.appendChild(input);
+  div.appendChild(deleteBtn);
+  return div;
+}
+
+// 入力フィールドから週を追加
+function addWeekFromInput() {
+  const input = document.getElementById('weekInput');
+  const weekString = input.value.trim();
+  
+  if (!weekString) {
+    alert('週を入力してください（例: 7/8, 12/25）');
+    return;
+  }
+  
+  // 日付形式をチェック
+  const datePattern = /^\d{1,2}\/\d{1,2}$/;
+  if (!datePattern.test(weekString)) {
+    alert('正しい形式で入力してください（例: 7/8, 12/25）');
+    return;
+  }
+  
+  // 既存の週かチェック
+  if (weeks.includes(weekString)) {
+    alert('この週は既に存在します');
+    return;
+  }
+  
+  // 週を追加
+  addWeek(weekString);
+  
+  // 入力フィールドをクリア
+  input.value = '';
+  
+  alert(`週「${weekString}」を追加しました`);
+}
+
+// 週を追加（共通処理）
+function addWeek(weekString) {
+  weeks.push(weekString);
+  
+  // ヘッダーに週を追加
+  const headerRow = document.getElementById('headerRow');
+  const th = document.createElement('th');
+  th.dataset.week = weekString;
+  th.className = 'week-column';
+  
+  th.innerHTML = `
+    <div class="week-header">
+      <span>${weekString}</span>
+      <button class="toggle-btn" onclick="toggleWeekVisibility('${weekString}')">非表示</button>
+    </div>
+    <div class="resize-handle"></div>
+  `;
+  
+  headerRow.appendChild(th);
+  
+  // 既存の各行に新しい週の列を追加
+  const tableBody = document.getElementById('tableBody');
+  const rows = tableBody.querySelectorAll('tr');
+  rows.forEach(row => {
+    const td = document.createElement('td');
+    td.dataset.week = weekString;
+    td.className = 'week-column';
+    
+    // createImageArea()を使用して画像エリアを作成
+    const imgArea = createImageArea();
+    td.appendChild(imgArea);
+    
+    td.innerHTML += `
+      <br>URL: <input type="text" placeholder="BOX URL" oninput="handleInputChange(this)">
+      <br>カテゴリ: <select onchange="handleInputChange(this)">
+        <option>デザイン</option>
+        <option>テンプレート</option>
+        <option>場面写</option>
+      </select>
+      <br>数量: <input type="number" placeholder="0" oninput="handleInputChange(this)">
+    `;
+    
+    row.appendChild(td);
+  });
+  
+  calculateTableWidth();
+  
+  // データ同期
+  syncDataToFirebase();
+}
+
+// 週を追加
+function addWeekFromDate(date) {
+  const selectedDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const month = selectedDate.getMonth() + 1;
+  const day = selectedDate.getDate();
+  const weekString = `${month}/${day}`;
+  
+  if (weeks.includes(weekString)) {
+    alert('この週は既に存在します');
+    return;
+  }
+  
+  // 共通の週追加処理を使用
+  addWeek(weekString);
+  
+  alert(`週「${weekString}」を追加しました`);
+  document.getElementById('calendarContainer').style.display = 'none';
+}
+
+// 入力変更の処理
+function handleInputChange(element) {
+  // 編集中の通知
+  const elementId = generateElementId(element);
+  notifyEditing(elementId, true);
+  
+  // 遅延同期（ユーザーが入力を完了してから同期）
+  clearTimeout(editingTimeouts[elementId]);
+  editingTimeouts[elementId] = setTimeout(() => {
+    syncDataToFirebase();
+    notifyEditing(elementId, false);
+  }, 1000);
+}
+
+function generateElementId(element) {
+  // 要素の位置を基にユニークなIDを生成
+  const row = element.closest('tr');
+  const cell = element.closest('td');
+  const rowIndex = Array.from(row.parentElement.children).indexOf(row);
+  const cellIndex = cell ? Array.from(row.children).indexOf(cell) : 0;
+  const inputIndex = Array.from(cell?.querySelectorAll('input, select') || []).indexOf(element);
+  
+  return `cell_${rowIndex}_${cellIndex}_${inputIndex}`;
+}
+
+// カレンダーの表示/非表示を切り替え
+function toggleCalendar() {
+  const container = document.getElementById('calendarContainer');
+  if (container.style.display === 'none') {
+    currentCalendarDate = new Date();
+    container.style.display = 'block';
+    renderCalendar();
+  } else {
+    container.style.display = 'none';
+  }
+}
+
+// カレンダーを描画
+function renderCalendar() {
+  const year = currentCalendarDate.getFullYear();
+  const month = currentCalendarDate.getMonth();
+  
+  const monthNames = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+  document.getElementById('currentMonth').textContent = `${year}年 ${monthNames[month]}`;
+  
+  const calendarBody = document.getElementById('calendarBody');
+  calendarBody.innerHTML = '';
+  
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const startDate = new Date(firstDay);
+  startDate.setDate(firstDay.getDate() - firstDay.getDay());
+  
+  for (let week = 0; week < 6; week++) {
+    const row = document.createElement('tr');
+    
+    for (let day = 0; day < 7; day++) {
+      const currentDate = new Date(startDate);
+      currentDate.setDate(startDate.getDate() + (week * 7) + day);
+      
+      const cell = document.createElement('td');
+      cell.className = 'calendar-day';
+      cell.textContent = currentDate.getDate();
+      
+      if (currentDate.getMonth() !== month) {
+        cell.classList.add('other-month');
+      }
+      
+      cell.classList.add('week-start');
+      
+      const clickDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate());
+      cell.onclick = () => addWeekFromDate(clickDate);
+      
+      row.appendChild(cell);
+    }
+    
+    calendarBody.appendChild(row);
+  }
+}
+
+function previousMonth() {
+  currentCalendarDate.setMonth(currentCalendarDate.getMonth() - 1);
+  renderCalendar();
+}
+
+function nextMonth() {
+  currentCalendarDate.setMonth(currentCalendarDate.getMonth() + 1);
+  renderCalendar();
+}
+
+// カテゴリを追加
+function addCategory(categoryName = null) {
+  const tableBody = document.getElementById('tableBody');
+  const tr = document.createElement('tr');
+  
+  const categoryTd = document.createElement('td');
+  categoryTd.className = 'category-cell category-column';
+  
+  if (categoryName) {
+    categoryTd.innerHTML = `
+      <select onchange="updateCategoryName(this); handleInputChange(this)">
+        <option value="Web広告バナー" ${categoryName === 'Web広告バナー' ? 'selected' : ''}>Web広告バナー</option>
+        <option value="広告テキスト" ${categoryName === '広告テキスト' ? 'selected' : ''}>広告テキスト</option>
+        <option value="デザイン" ${categoryName === 'デザイン' ? 'selected' : ''}>デザイン</option>
+        <option value="その他" ${!['Web広告バナー', '広告テキスト', 'デザイン'].includes(categoryName) ? 'selected' : ''}>その他</option>
+      </select>
+      <br>総数: <input type="number" value="0" oninput="handleInputChange(this)">
+      <button class="delete-category-btn" onclick="deleteCategory(this)">削除</button>
+    `;
+  } else {
+    categoryTd.innerHTML = `
+      <select onchange="updateCategoryName(this); handleInputChange(this)">
+        <option value="Web広告バナー">Web広告バナー</option>
+        <option value="広告テキスト">広告テキスト</option>
+        <option value="デザイン">デザイン</option>
+        <option value="その他">その他</option>
+      </select>
+      <br>総数: <input type="number" value="0" oninput="handleInputChange(this)">
+      <button class="delete-category-btn" onclick="deleteCategory(this)">削除</button>
+    `;
+  }
+  
+  tr.appendChild(categoryTd);
+  
+  weeks.forEach(week => {
+    const td = document.createElement('td');
+    td.dataset.week = week;
+    td.className = 'week-column';
+    
+    if (hiddenWeeks.has(week)) {
+      td.classList.add('week-column-hidden');
+    }
+    
+    // createImageArea()を使用して、確実にイベントが設定された画像エリアを作成
+    const imgArea = createImageArea();
+    td.appendChild(imgArea);
+    
+    td.innerHTML += `
+      <br>URL: <input type="text" placeholder="BOX URL" oninput="handleInputChange(this)">
+      <br>カテゴリ: <select onchange="handleInputChange(this)">
+        <option>デザイン</option>
+        <option>テンプレート</option>
+        <option>場面写</option>
+      </select>
+      <br>数量: <input type="number" placeholder="0" oninput="handleInputChange(this)">
+    `;
+    
+    tr.appendChild(td);
+  });
+  
+  tableBody.appendChild(tr);
+  calculateTableWidth();
+  
+  // データ同期
+  syncDataToFirebase();
+}
+
+function deleteCategory(button) {
+  if (!confirm('このカテゴリを削除しますか？')) {
+    return;
+  }
+  
+  const row = button.closest('tr');
+  row.remove();
+  calculateTableWidth();
+  
+  // データ同期
+  syncDataToFirebase();
+}
+
+function updateHiddenWeekSelect() {
+  const select = document.getElementById('hiddenWeekSelect');
+  select.innerHTML = '<option value="">非表示の週を選択</option>';
+  
+  hiddenWeeks.forEach(week => {
+    const option = document.createElement('option');
+    option.value = week;
+    option.textContent = week;
+    select.appendChild(option);
+  });
+}
+
+function updateCategoryName(select) {
+  console.log('カテゴリが変更されました:', select.value);
+}
+
+function toggleWeekVisibility(week) {
+  const isHidden = hiddenWeeks.has(week);
+  
+  const headerRow = document.getElementById('headerRow');
+  const targetHeader = headerRow.querySelector(`th[data-week="${week}"]`);
+  const toggleButton = targetHeader.querySelector('.toggle-btn');
+  
+  const tableBody = document.getElementById('tableBody');
+  const targetCells = tableBody.querySelectorAll(`td[data-week="${week}"]`);
+  
+  if (isHidden) {
+    hiddenWeeks.delete(week);
+    targetHeader.classList.remove('week-column-hidden');
+    toggleButton.classList.remove('hidden');
+    toggleButton.textContent = '非表示';
+    
+    targetCells.forEach(cell => {
+      cell.classList.remove('week-column-hidden');
+    });
+  } else {
+    hiddenWeeks.add(week);
+    targetHeader.classList.add('week-column-hidden');
+    toggleButton.classList.add('hidden');
+    toggleButton.textContent = '表示';
+    
+    targetCells.forEach(cell => {
+      cell.classList.add('week-column-hidden');
+    });
+  }
+  
+  updateHiddenWeekSelect();
+  calculateTableWidth();
+  
+  // データ同期
+  syncDataToFirebase();
+}
+
+function showHiddenWeek() {
+  const select = document.getElementById('hiddenWeekSelect');
+  const weekToShow = select.value;
+  
+  if (!weekToShow) {
+    alert('表示する週を選択してください');
+    return;
+  }
+  
+  toggleWeekVisibility(weekToShow);
+}
+
+function showAllWeeks() {
+  if (hiddenWeeks.size === 0) {
+    alert('非表示の週はありません');
+    return;
+  }
+  
+  const hiddenWeeksList = Array.from(hiddenWeeks);
+  hiddenWeeksList.forEach(week => {
+    toggleWeekVisibility(week);
+  });
+  
+  alert('全ての週を表示しました');
+}
+
+// ========== データ管理機能 ==========
+
+// ローカル設定の保存と読み込み
+function saveLocalSettings() {
+  const settings = {
+    weeks,
+    categories,
+    hiddenWeeks: Array.from(hiddenWeeks),
+    currentZoom
+  };
+  localStorage.setItem('scheduleToolSettings', JSON.stringify(settings));
+}
+
+function loadLocalSettings() {
+  const settingsStr = localStorage.getItem('scheduleToolSettings');
+  if (settingsStr) {
+    const settings = JSON.parse(settingsStr);
+    weeks = settings.weeks || ["7/1"];
+    categories = settings.categories || ["Web広告バナー", "広告テキスト", "デザイン"];
+    hiddenWeeks = new Set(settings.hiddenWeeks || []);
+    currentZoom = settings.currentZoom || 100;
+  }
+}
+
+// 現在のデータを取得
+function getCurrentData() {
+  const data = {
+    timestamp: new Date().toISOString(),
+    weeks: weeks,
+    categories: categories,
+    hiddenWeeks: Array.from(hiddenWeeks),
+    currentZoom: currentZoom,
+    tableData: []
+  };
+  
+  // 各行のデータを取得
+  const rows = document.querySelectorAll('#tableBody tr');
+  rows.forEach((row, rowIndex) => {
+    const rowData = {
+      category: '',
+      totalCount: 0,
+      weekData: {}
+    };
+    
+    // カテゴリ情報
+    const categoryCell = row.querySelector('.category-cell');
+    if (categoryCell) {
+      const categorySelect = categoryCell.querySelector('select');
+      const totalInput = categoryCell.querySelector('input[type="number"]');
+      rowData.category = categorySelect ? categorySelect.value : '';
+      rowData.totalCount = totalInput ? parseInt(totalInput.value) || 0 : 0;
+    }
+    
+    // 各週のデータ
+    weeks.forEach(week => {
+      const weekCell = row.querySelector(`td[data-week="${week}"]`);
+      if (weekCell) {
+        const urlInput = weekCell.querySelector('input[type="text"]');
+        const categorySelect = weekCell.querySelector('select');
+        const countInput = weekCell.querySelector('input[type="number"]');
+        const imgArea = weekCell.querySelector('.img-area');
+        
+        rowData.weekData[week] = {
+          url: urlInput ? urlInput.value : '',
+          category: categorySelect ? categorySelect.value : '',
+          count: countInput ? parseInt(countInput.value) || 0 : 0,
+          imageData: null
+        };
+        
+        // 画像データを取得
+        if (imgArea && imgArea.classList.contains('has-image')) {
+          const img = imgArea.querySelector('img');
+          if (img) {
+            rowData.weekData[week].imageData = img.src;
+          }
+        }
+      }
+    });
+    
+    data.tableData.push(rowData);
+  });
+  
+  return data;
+}
+
+// データを復元
+function restoreData(data) {
+  // 既存のデータをクリア
+  clearTable();
+  
+  // 基本データを復元
+  weeks = data.weeks || ["7/1"];
+  categories = data.categories || ["Web広告バナー", "広告テキスト", "デザイン"];
+  hiddenWeeks = new Set(data.hiddenWeeks || []);
+  currentZoom = data.currentZoom || 100;
+  
+  // ズームを復元
+  document.getElementById('zoomSlider').value = currentZoom;
+  updateZoom(currentZoom);
+  
+  // テーブルを再構築
+  rebuildTable(data.tableData || []);
+  
+  // ローカル設定も更新
+  saveLocalSettings();
+  
+  console.log('データを復元しました');
+}
+
+// テーブルをクリア
+function clearTable() {
+  const headerRow = document.getElementById('headerRow');
+  const tableBody = document.getElementById('tableBody');
+  
+  // ヘッダーをクリア（カテゴリ列以外）
+  const headers = headerRow.querySelectorAll('th:not(.category-column)');
+  headers.forEach(header => header.remove());
+  
+  // テーブルボディをクリア
+  tableBody.innerHTML = '';
+}
+
+// テーブルを再構築
+function rebuildTable(tableData) {
+  const headerRow = document.getElementById('headerRow');
+  
+  // ヘッダーを再構築
+  weeks.forEach(week => {
+    const th = document.createElement('th');
+    th.dataset.week = week;
+    th.className = 'week-column';
+    
+    if (hiddenWeeks.has(week)) {
+      th.classList.add('week-column-hidden');
+    }
+    
+    th.innerHTML = `
+      <div class="week-header">
+        <span>${week}</span>
+        <button class="toggle-btn ${hiddenWeeks.has(week) ? 'hidden' : ''}" 
+                onclick="toggleWeekVisibility('${week}')">
+          ${hiddenWeeks.has(week) ? '表示' : '非表示'}
+        </button>
+      </div>
+      <div class="resize-handle"></div>
+    `;
+    
+    headerRow.appendChild(th);
+  });
+  
+  // テーブルデータを復元
+  tableData.forEach(rowData => {
+    const tr = document.createElement('tr');
+    
+    // カテゴリセル
+    const categoryTd = document.createElement('td');
+    categoryTd.className = 'category-cell category-column';
+    categoryTd.innerHTML = `
+      <select onchange="updateCategoryName(this); handleInputChange(this)">
+        <option value="Web広告バナー" ${rowData.category === 'Web広告バナー' ? 'selected' : ''}>Web広告バナー</option>
+        <option value="広告テキスト" ${rowData.category === '広告テキスト' ? 'selected' : ''}>広告テキスト</option>
+        <option value="デザイン" ${rowData.category === 'デザイン' ? 'selected' : ''}>デザイン</option>
+        <option value="その他" ${rowData.category === 'その他' ? 'selected' : ''}>その他</option>
+      </select>
+      <br>総数: <input type="number" value="${rowData.totalCount}" oninput="handleInputChange(this)">
+      <button class="delete-category-btn" onclick="deleteCategory(this)">削除</button>
+    `;
+    tr.appendChild(categoryTd);
+    
+    // 各週のセル
+    weeks.forEach(week => {
+      const td = document.createElement('td');
+      td.dataset.week = week;
+      td.className = 'week-column';
+      
+      if (hiddenWeeks.has(week)) {
+        td.classList.add('week-column-hidden');
+      }
+      
+      const weekData = rowData.weekData[week] || {};
+      
+      // 画像エリアを作成
+      const imgArea = createImageArea();
+      if (weekData.imageData) {
+        console.log('保存された画像を復元中');
+        // 画像データがある場合は復元
+        imgArea.innerHTML = '';
+        
+        const img = document.createElement('img');
+        img.src = weekData.imageData;
+        img.alt = '画像';
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.style.objectFit = 'cover';
+        img.style.borderRadius = '2px';
+        imgArea.appendChild(img);
+        
+        // input と deleteBtn を再追加（createImageAreaで作成済みのものを使用）
+        const input = imgArea.querySelector('input[type="file"]') || imgArea.children[imgArea.children.length - 2];
+        const deleteBtn = imgArea.querySelector('.img-delete') || imgArea.children[imgArea.children.length - 1];
+        
+        if (input && deleteBtn) {
+          imgArea.appendChild(input);
+          imgArea.appendChild(deleteBtn);
+          deleteBtn.style.display = 'block';
+          imgArea.classList.add('has-image');
+        }
+      }
+      
+      td.appendChild(imgArea);
+      
+      td.innerHTML += `
+        <br>URL: <input type="text" placeholder="BOX URL" value="${weekData.url || ''}" oninput="handleInputChange(this)">
+        <br>カテゴリ: <select onchange="handleInputChange(this)">
+          <option ${weekData.category === 'デザイン' ? 'selected' : ''}>デザイン</option>
+          <option ${weekData.category === 'テンプレート' ? 'selected' : ''}>テンプレート</option>
+          <option ${weekData.category === '場面写' ? 'selected' : ''}>場面写</option>
+        </select>
+        <br>数量: <input type="number" placeholder="0" value="${weekData.count || ''}" oninput="handleInputChange(this)">
+      `;
+      
+      tr.appendChild(td);
+    });
+    
+    document.getElementById('tableBody').appendChild(tr);
+  });
+  
+  updateHiddenWeekSelect();
+  calculateTableWidth();
+}
+
+// 初期化実行
+window.addEventListener('load', init);
+
+// ページ離脱時にローカル設定を保存
+window.addEventListener('beforeunload', () => {
+  saveLocalSettings();
+  
+  // プレゼンス削除
+  if (firestore && currentProjectId && currentUser) {
+    firestore.collection('projects').doc(currentProjectId).collection('users').doc(currentUser).delete();
+  }
+  
+  // プレゼンス更新のインターバルをクリア
+  if (presenceUpdateInterval) {
+    clearInterval(presenceUpdateInterval);
+  }
+});
+</script>
+</body>
+</html>
